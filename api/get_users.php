@@ -28,11 +28,14 @@ $result = $stmt->get_result();
 
 $users = [];
 while ($row = $result->fetch_assoc()) {
+    // Ensure status is never null - default to 'offline'
+    $status = $row['status'] ?: 'offline';
+    
     $users[] = [
         'id' => $row['id'],
         'username' => $row['username'],
         'profile_picture' => $row['profile_picture'],
-        'status' => $row['status'],
+        'status' => $status,
         'last_seen' => $row['last_seen']
     ];
 }

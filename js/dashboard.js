@@ -12,11 +12,11 @@ document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
     updateUserStatus('online');
     
-    // Poll for users every 3 seconds
-    pollInterval = setInterval(loadUsers, 3000);
+    // Poll for users every 2 seconds (faster updates)
+    pollInterval = setInterval(loadUsers, 2000);
     
-    // Poll for incoming calls every 2 seconds
-    setInterval(checkForIncomingCalls, 2000);
+    // Poll for incoming calls every 1 second (faster notification)
+    setInterval(checkForIncomingCalls, 1000);
     
     // Update status before leaving page
     window.addEventListener('beforeunload', function() {
@@ -35,6 +35,9 @@ async function loadUsers() {
         if (data.success) {
             users = data.users;
             displayUsers();
+            
+            // Debug: Log user statuses
+            console.log('Users loaded:', users.map(u => `${u.username}: ${u.status}`));
         }
     } catch (error) {
         console.error('Error loading users:', error);
@@ -327,8 +330,12 @@ function formatTime(timestamp) {
  * Check for incoming call requests
  */
 let incomingCallData = null;
+let callModalShown = false;
 
 async function checkForIncomingCalls() {
+    // Don't check if modal is already shown (user is handling the call)
+    if (callModalShown) return;
+    
     try {
         const response = await fetch('api/get_signals.php');
         const data = await response.json();
@@ -337,14 +344,18 @@ async function checkForIncomingCalls() {
             for (const signal of data.signals) {
                 // Check for call request
                 if (signal.signal_type === 'call-request') {
-                    // Show incoming call modal
-                    incomingCallData = {
-                        from_user_id: signal.from_user_id,
-                        from_username: signal.from_username,
-                        from_profile_picture: signal.from_profile_picture,
-                        call_type: signal.call_type
-                    };
-                    showIncomingCallModal();
+                    // Only show if not already showing
+                    if (!callModalShown) {
+                        // Show incoming call modal
+                        incomingCallData = {
+                            from_user_id: signal.from_user_id,
+                            from_username: signal.from_username,
+                            from_profile_picture: signal.from_profile_picture,
+                            call_type: signal.call_type
+                        };
+                        showIncomingCallModal();
+                        callModalShown = true;
+                    }
                     break; // Only show one call at a time
                 }
             }
@@ -361,11 +372,18 @@ function showIncomingCallModal() {
     if (!incomingCallData) return;
     
     const modal = document.getElementById('callModal');
+    if (!modal) {
+        console.error('Call modal element not found!');
+        return;
+    }
+    
     document.getElementById('callModalTitle').textContent = 
         incomingCallData.call_type === 'video' ? 'Incoming Video Call' : 'Incoming Audio Call';
     document.getElementById('callModalName').textContent = incomingCallData.from_username;
     document.getElementById('callModalAvatar').src = 'uploads/' + incomingCallData.from_profile_picture;
     modal.classList.add('active');
+    
+    console.log('Incoming call modal shown for:', incomingCallData.from_username);
     
     // Play notification sound (optional)
     // You can add a sound file and play it here
@@ -374,11 +392,15 @@ function showIncomingCallModal() {
 /**
  * Accept incoming call
  */
-function acceptCall() {
+async function acceptCall() {
     if (!incomingCallData) return;
     
     // Update status
-    updateUserStatus('on_call');
+    await updateUserStatus('on_call');
+    
+    // Close modal
+    callModalShown = false;
+    document.getElementById('callModal').classList.remove('active');
     
     // Redirect to call page as receiver (not initiator)
     window.location.href = `call.php?user_id=${incomingCallData.from_user_id}&type=${incomingCallData.call_type}&initiator=false`;
@@ -391,11 +413,13 @@ async function rejectCall() {
     if (!incomingCallData) return;
     
     // Close modal
+    callModalShown = false;
     document.getElementById('callModal').classList.remove('active');
     
-    // Send rejection signal (optional - you can implement this)
-    // For now, just clear the call data
+    // Clear the call data
     incomingCallData = null;
+    
+    // Optionally send a rejection signal (can be implemented later)
 }
 
 // Allow Enter key to send message
