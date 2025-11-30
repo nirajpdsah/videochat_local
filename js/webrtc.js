@@ -208,9 +208,26 @@ async function sendSignal(signalType, signalData) {
 async function checkForSignals() {
     try {
         const response = await fetch('api/get_signals.php');
-        const data = await response.json();
         
-        if (data.success && data.signals.length > 0) {
+        // Check if response is OK
+        if (!response.ok) {
+            console.error('API error:', response.status, response.statusText);
+            return;
+        }
+        
+        // Get response as text first to check if it's JSON
+        const responseText = await response.text();
+        
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Response was:', responseText.substring(0, 200));
+            return;
+        }
+        
+        if (data.success && data.signals && data.signals.length > 0) {
             for (const signal of data.signals) {
                 // Only process signals from the remote user we're calling
                 if (signal.from_user_id !== remoteUserId) continue;

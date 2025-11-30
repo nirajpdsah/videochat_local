@@ -338,9 +338,24 @@ async function checkForIncomingCalls() {
     
     try {
         const response = await fetch('api/get_signals.php');
-        const data = await response.json();
         
-        if (data.success && data.signals.length > 0) {
+        if (!response.ok) {
+            console.error('Failed to fetch signals:', response.status);
+            return;
+        }
+        
+        const responseText = await response.text();
+        let data;
+        
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('JSON parse error in checkForIncomingCalls:', parseError);
+            console.error('Response:', responseText.substring(0, 200));
+            return;
+        }
+        
+        if (data.success && data.signals && data.signals.length > 0) {
             for (const signal of data.signals) {
                 // Check for call request
                 if (signal.signal_type === 'call-request') {
@@ -351,10 +366,11 @@ async function checkForIncomingCalls() {
                             from_user_id: signal.from_user_id,
                             from_username: signal.from_username,
                             from_profile_picture: signal.from_profile_picture,
-                            call_type: signal.call_type
+                            call_type: signal.call_type || 'video'
                         };
                         showIncomingCallModal();
                         callModalShown = true;
+                        console.log('Incoming call detected and modal shown');
                     }
                     break; // Only show one call at a time
                 }
