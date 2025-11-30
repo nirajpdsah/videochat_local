@@ -131,8 +131,9 @@ foreach ($tables as $name => $sql) {
     }
 }
 
-$conn->query("CREATE INDEX IF NOT EXISTS idx_user_status ON users(status)");
-$conn->query("CREATE INDEX IF NOT EXISTS idx_user_email ON users(email)");
+// Create indexes (ignore errors if they already exist)
+$conn->query("CREATE INDEX idx_user_status ON users(status)");
+$conn->query("CREATE INDEX idx_user_email ON users(email)");
 
 echo "</div>";
 
