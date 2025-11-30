@@ -1,0 +1,44 @@
+# PHP
+*.log
+*.cache
+.htpasswd
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (keep directory structure)
+uploads/*
+!uploads/.gitkeep
+!uploads/default-avatar.png
+
+# Composer
+/vendor/
+composer.lock
+
+# Node (if you add build tools later)
+node_modules/
+npm-debug.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Database backups
+*.sql.gz
+*.sql.bak
+
+# Railway
+.railway/
+
