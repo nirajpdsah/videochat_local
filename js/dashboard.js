@@ -8,18 +8,18 @@ let pollInterval = null;
 let messagesInterval = null;
 
 // Load users on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     loadUsers();
     updateUserStatus('online');
-    
+
     // Poll for users every 2 seconds (faster updates)
     pollInterval = setInterval(loadUsers, 2000);
-    
+
     // Poll for incoming calls every 1 second (faster notification)
     setInterval(checkForIncomingCalls, 1000);
-    
+
     // Update status before leaving page
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function () {
         updateUserStatus('offline');
     });
 });
@@ -31,11 +31,11 @@ async function loadUsers() {
     try {
         const response = await fetch('api/get_users.php');
         const data = await response.json();
-        
+
         if (data.success) {
             users = data.users;
             displayUsers();
-            
+
             // Debug: Log user statuses
             console.log('Users loaded:', users.map(u => `${u.username}: ${u.status}`));
         }
@@ -49,18 +49,18 @@ async function loadUsers() {
  */
 function displayUsers() {
     const usersList = document.getElementById('usersList');
-    
+
     if (users.length === 0) {
         usersList.innerHTML = '<div class="loading">No other users found</div>';
         return;
     }
-    
+
     let html = '';
     users.forEach(user => {
         const statusClass = `status-${user.status}`;
-        const statusText = user.status === 'online' ? 'Online' : 
-                          user.status === 'on_call' ? 'On a call' : 'Offline';
-        
+        const statusText = user.status === 'online' ? 'Online' :
+            user.status === 'on_call' ? 'On a call' : 'Offline';
+
         html += `
             <div class="user-item" data-user-id="${user.id}">
                 <img src="uploads/${user.profile_picture}" alt="${user.username}">
@@ -88,7 +88,7 @@ function displayUsers() {
             </div>
         `;
     });
-    
+
     usersList.innerHTML = html;
 }
 
@@ -99,8 +99,8 @@ async function updateUserStatus(status) {
     try {
         await fetch('api/update_status.php', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({status})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
         });
     } catch (error) {
         console.error('Error updating status:', error);
@@ -117,20 +117,20 @@ async function initiateCall(userId, username, callType) {
         showBusyModal();
         return;
     }
-    
+
     // Send call request to the other user
     try {
         const response = await fetch('api/send_call_request.php', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 to_user_id: userId,
                 call_type: callType
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (!data.success) {
             if (data.message === 'User is busy') {
                 showBusyModal();
@@ -146,13 +146,13 @@ async function initiateCall(userId, username, callType) {
         alert('Failed to send call request. Please check console for details and ensure the database is updated.');
         return;
     }
-    
+
     // Show calling modal
     showCallingModal(username, user.profile_picture);
-    
+
     // Update own status
     updateUserStatus('on_call');
-    
+
     // Redirect to call page as initiator
     setTimeout(() => {
         window.location.href = `call.php?user_id=${userId}&type=${callType}&initiator=true`;
@@ -197,25 +197,25 @@ function closeBusyModal() {
 function openChat(userId, username, profilePic) {
     selectedUserId = userId;
     selectedUsername = username;
-    
+
     // Update chat header
     document.getElementById('chatHeader').innerHTML = `
         <img src="uploads/${profilePic}" alt="${username}" class="profile-pic-small">
         <span>${username}</span>
     `;
-    
+
     // Show chat input
     document.getElementById('chatInput').style.display = 'flex';
-    
+
     // Load messages
     loadMessages();
-    
+
     // Start polling for new messages
     if (messagesInterval) {
         clearInterval(messagesInterval);
     }
     messagesInterval = setInterval(loadMessages, 2000);
-    
+
     // Highlight selected user
     document.querySelectorAll('.user-item').forEach(item => {
         item.classList.remove('active');
@@ -228,11 +228,11 @@ function openChat(userId, username, profilePic) {
  */
 async function loadMessages() {
     if (!selectedUserId) return;
-    
+
     try {
         const response = await fetch(`api/messages.php?user_id=${selectedUserId}`);
         const data = await response.json();
-        
+
         if (data.success) {
             displayMessages(data.messages);
         }
@@ -246,17 +246,17 @@ async function loadMessages() {
  */
 function displayMessages(messages) {
     const chatMessages = document.getElementById('chatMessages');
-    
+
     if (messages.length === 0) {
         chatMessages.innerHTML = '<div class="loading">No messages yet. Start chatting!</div>';
         return;
     }
-    
+
     let html = '';
     messages.forEach(msg => {
         const isSent = msg.from_user_id === currentUserId;
         const messageClass = isSent ? 'sent' : '';
-        
+
         html += `
             <div class="message ${messageClass}">
                 <img src="uploads/${msg.profile_picture}" alt="${msg.username}">
@@ -267,9 +267,9 @@ function displayMessages(messages) {
             </div>
         `;
     });
-    
+
     chatMessages.innerHTML = html;
-    
+
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -280,21 +280,21 @@ function displayMessages(messages) {
 async function sendMessage() {
     const input = document.getElementById('messageInput');
     const message = input.value.trim();
-    
+
     if (!message || !selectedUserId) return;
-    
+
     try {
         const response = await fetch('api/messages.php', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 to_user_id: selectedUserId,
                 message: message
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             input.value = '';
             loadMessages();
@@ -311,19 +311,19 @@ function formatTime(timestamp) {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now - date;
-    
+
     // If less than 1 minute
     if (diff < 60000) {
         return 'Just now';
     }
-    
+
     // If today
     if (date.toDateString() === now.toDateString()) {
-        return date.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     }
-    
+
     // Otherwise
-    return date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -335,18 +335,18 @@ let callModalShown = false;
 async function checkForIncomingCalls() {
     // Don't check if modal is already shown (user is handling the call)
     if (callModalShown) return;
-    
+
     try {
         const response = await fetch('api/get_signals.php');
-        
+
         if (!response.ok) {
             console.error('Failed to fetch signals:', response.status);
             return;
         }
-        
+
         const responseText = await response.text();
         let data;
-        
+
         try {
             data = JSON.parse(responseText);
         } catch (parseError) {
@@ -354,7 +354,7 @@ async function checkForIncomingCalls() {
             console.error('Response:', responseText.substring(0, 200));
             return;
         }
-        
+
         if (data.success && data.signals && data.signals.length > 0) {
             for (const signal of data.signals) {
                 // Check for call request
@@ -386,21 +386,21 @@ async function checkForIncomingCalls() {
  */
 function showIncomingCallModal() {
     if (!incomingCallData) return;
-    
+
     const modal = document.getElementById('callModal');
     if (!modal) {
         console.error('Call modal element not found!');
         return;
     }
-    
-    document.getElementById('callModalTitle').textContent = 
+
+    document.getElementById('callModalTitle').textContent =
         incomingCallData.call_type === 'video' ? 'Incoming Video Call' : 'Incoming Audio Call';
     document.getElementById('callModalName').textContent = incomingCallData.from_username;
     document.getElementById('callModalAvatar').src = 'uploads/' + incomingCallData.from_profile_picture;
     modal.classList.add('active');
-    
+
     console.log('Incoming call modal shown for:', incomingCallData.from_username);
-    
+
     // Play notification sound (optional)
     // You can add a sound file and play it here
 }
@@ -410,14 +410,27 @@ function showIncomingCallModal() {
  */
 async function acceptCall() {
     if (!incomingCallData) return;
-    
+
+    // Delete the call-request signal
+    try {
+        await fetch('api/delete_signal.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                from_user_id: incomingCallData.from_user_id
+            })
+        });
+    } catch (error) {
+        console.error('Error deleting signal:', error);
+    }
+
     // Update status
     await updateUserStatus('on_call');
-    
+
     // Close modal
     callModalShown = false;
     document.getElementById('callModal').classList.remove('active');
-    
+
     // Redirect to call page as receiver (not initiator)
     window.location.href = `call.php?user_id=${incomingCallData.from_user_id}&type=${incomingCallData.call_type}&initiator=false`;
 }
@@ -427,22 +440,33 @@ async function acceptCall() {
  */
 async function rejectCall() {
     if (!incomingCallData) return;
-    
+
+    // Delete the call-request signal
+    try {
+        await fetch('api/delete_signal.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                from_user_id: incomingCallData.from_user_id
+            })
+        });
+    } catch (error) {
+        console.error('Error deleting signal:', error);
+    }
+
     // Close modal
     callModalShown = false;
     document.getElementById('callModal').classList.remove('active');
-    
+
     // Clear the call data
     incomingCallData = null;
-    
-    // Optionally send a rejection signal (can be implemented later)
 }
 
 // Allow Enter key to send message
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('messageInput');
     if (input) {
-        input.addEventListener('keypress', function(e) {
+        input.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
                 sendMessage();
             }
