@@ -6,6 +6,11 @@
 let users = [];
 let pollInterval = null;
 let messagesInterval = null;
+let unreadCounts = {};
+let previousUnreadCounts = {};
+let selectedUserId = null;
+let selectedUsername = null;
+let currentUserId = null; // Will be set when loading users or from PHP
 
 // Load users on page load
 document.addEventListener('DOMContentLoaded', function () {
@@ -18,10 +23,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // Poll for incoming calls every 1 second (faster notification)
     setInterval(checkForIncomingCalls, 1000);
 
+    // Poll for unread message counts every 2 seconds
+    setInterval(loadUnreadCounts, 2000);
+    loadUnreadCounts(); // Load immediately
+
     // Update status before leaving page
     window.addEventListener('beforeunload', function () {
         updateUserStatus('offline');
     });
+
+    // Allow Enter key to send message
+    const input = document.getElementById('messageInput');
+    if (input) {
+        input.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
 });
 
 /**
@@ -34,14 +53,89 @@ async function loadUsers() {
 
         if (data.success) {
             users = data.users;
+            // Set current user ID if available in response, otherwise we might need another way
+            if (data.current_user_id) {
+                currentUserId = data.current_user_id;
+            }
             displayUsers();
-
-            // Debug: Log user statuses
-            console.log('Users loaded:', users.map(u => `${u.username}: ${u.status}`));
         }
     } catch (error) {
         console.error('Error loading users:', error);
     }
+}
+
+/**
+ * Load unread message counts
+ */
+async function loadUnreadCounts() {
+    try {
+        const response = await fetch('api/get_unread_counts.php');
+        const data = await response.json();
+
+        if (data.success) {
+            const newUnreadCounts = data.unread_counts;
+
+            // Check for new messages to show toast
+            for (const [userId, count] of Object.entries(newUnreadCounts)) {
+                const prevCount = previousUnreadCounts[userId] || 0;
+                if (count > prevCount && userId != selectedUserId) {
+                    // New message received!
+                    const user = users.find(u => u.id == userId);
+                    if (user) {
+                        showToastNotification(user, count - prevCount);
+                        // Play sound if needed
+                        // playNotificationSound();
+                    }
+                }
+            }
+
+            unreadCounts = newUnreadCounts;
+            previousUnreadCounts = { ...newUnreadCounts };
+            displayUsers(); // Refresh user list to show badges
+        }
+    } catch (error) {
+        console.error('Error loading unread counts:', error);
+    }
+}
+
+/**
+ * Show toast notification
+ */
+function showToastNotification(user, newCount) {
+    // Remove existing toast if any
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.innerHTML = `
+        <img src="uploads/${user.profile_picture}" alt="${user.username}">
+        <div class="toast-notification-content">
+            <strong>${user.username}</strong>
+            <p>${newCount} new message${newCount > 1 ? 's' : ''}</p>
+        </div>
+        <button class="close-toast" onclick="this.parentElement.remove()">×</button>
+    `;
+
+    // Click to open chat
+    toast.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('close-toast')) {
+            openChat(user.id, user.username, user.profile_picture);
+            toast.remove();
+        }
+    });
+
+    document.body.appendChild(toast);
+
+    // Auto hide after 5 seconds
+    setTimeout(() => {
+        if (document.body.contains(toast)) {
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 5000);
 }
 
 /**
@@ -61,8 +155,12 @@ function displayUsers() {
         const statusText = user.status === 'online' ? 'Online' :
             user.status === 'on_call' ? 'On a call' : 'Offline';
 
+        // Check for unread messages
+        const unreadCount = unreadCounts[user.id] || 0;
+        const badgeHtml = unreadCount > 0 ? `<span class="notification-badge">${unreadCount}</span>` : '';
+
         html += `
-            <div class="user-item" data-user-id="${user.id}">
+            <div class="user-item ${selectedUserId === user.id ? 'active' : ''}" data-user-id="${user.id}">
                 <img src="uploads/${user.profile_picture}" alt="${user.username}">
                 <div class="user-item-info">
                     <h4>${user.username}</h4>
@@ -72,6 +170,7 @@ function displayUsers() {
                     </p>
                 </div>
                 <div class="user-actions">
+                    ${badgeHtml}
                     <button class="action-btn video" onclick="initiateCall(${user.id}, '${user.username}', 'video')" 
                             ${user.status === 'on_call' ? 'disabled' : ''} title="Video Call">
                         📹
@@ -220,7 +319,17 @@ function openChat(userId, username, profilePic) {
     document.querySelectorAll('.user-item').forEach(item => {
         item.classList.remove('active');
     });
-    document.querySelector(`[data-user-id="${userId}"]`).classList.add('active');
+    const userItem = document.querySelector(`[data-user-id="${userId}"]`);
+    if (userItem) {
+        userItem.classList.add('active');
+    }
+
+    // Clear unread count for this user locally
+    if (unreadCounts[userId]) {
+        unreadCounts[userId] = 0;
+        previousUnreadCounts[userId] = 0;
+        displayUsers();
+    }
 }
 
 /**
@@ -235,6 +344,14 @@ async function loadMessages() {
 
         if (data.success) {
             displayMessages(data.messages);
+
+            // If we successfully loaded messages, we can assume they are read
+            // The backend marks them as read when fetched
+            if (unreadCounts[selectedUserId] > 0) {
+                unreadCounts[selectedUserId] = 0;
+                previousUnreadCounts[selectedUserId] = 0;
+                displayUsers();
+            }
         }
     } catch (error) {
         console.error('Error loading messages:', error);
@@ -252,9 +369,18 @@ function displayMessages(messages) {
         return;
     }
 
+    // Get current user ID from the first sent message if not set
+    if (!currentUserId && messages.length > 0) {
+        const sentMsg = messages.find(m => m.from_user_id != selectedUserId);
+        if (sentMsg) {
+            currentUserId = sentMsg.from_user_id;
+        }
+    }
+
     let html = '';
     messages.forEach(msg => {
-        const isSent = msg.from_user_id === currentUserId;
+        // Use loose equality for IDs as they might be strings/numbers
+        const isSent = msg.from_user_id == currentUserId;
         const messageClass = isSent ? 'sent' : '';
 
         html += `
@@ -351,7 +477,7 @@ async function checkForIncomingCalls() {
             data = JSON.parse(responseText);
         } catch (parseError) {
             console.error('JSON parse error in checkForIncomingCalls:', parseError);
-            console.error('Response:', responseText.substring(0, 200));
+            // console.error('Response:', responseText.substring(0, 200));
             return;
         }
 
@@ -400,9 +526,6 @@ function showIncomingCallModal() {
     modal.classList.add('active');
 
     console.log('Incoming call modal shown for:', incomingCallData.from_username);
-
-    // Play notification sound (optional)
-    // You can add a sound file and play it here
 }
 
 /**
@@ -461,15 +584,3 @@ async function rejectCall() {
     // Clear the call data
     incomingCallData = null;
 }
-
-// Allow Enter key to send message
-document.addEventListener('DOMContentLoaded', function () {
-    const input = document.getElementById('messageInput');
-    if (input) {
-        input.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-    }
-});
