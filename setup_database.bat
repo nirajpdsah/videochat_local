@@ -56,6 +56,16 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 echo.
+echo [3.5/4] Importing session schema...
+"%MYSQL_PATH%\mysql.exe" -u %DB_USER% --password=%DB_PASS% %DB_NAME% < update_schema_sessions.sql 2>NUL
+
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] Session schema imported successfully
+) else (
+    echo [WARNING] Failed to import session schema - it might already exist
+)
+
+echo.
 echo [4/4] Verifying setup...
 
 REM Verify tables exist
@@ -77,6 +87,7 @@ echo Tables created:
 echo   - users
 echo   - signals
 echo   - messages
+echo   - login_logs
 echo.
 echo You can now access the application at:
 echo http://localhost/videochat

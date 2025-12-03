@@ -1,68 +1,32 @@
-/**
- * Dashboard JavaScript
- * Handles user list, chat functionality, and call initiation
- */
 
-let users = [];
-let pollInterval = null;
-let messagesInterval = null;
-let unreadCounts = {};
-let previousUnreadCounts = {};
-let selectedUserId = null;
-let selectedUsername = null;
-let currentUserId = null; // Will be set when loading users or from PHP
+// Poll for users every 2 seconds (faster updates)
+pollInterval = setInterval(loadUsers, 2000);
 
-// Load users on page load
-document.addEventListener('DOMContentLoaded', function () {
-    loadUsers();
-    updateUserStatus('online');
+// Poll for incoming calls every 1 second (faster notification)
+setInterval(checkForIncomingCalls, 1000);
 
-    // Poll for users every 2 seconds (faster updates)
-    pollInterval = setInterval(loadUsers, 2000);
+// Poll for unread message counts every 2 seconds
+setInterval(loadUnreadCounts, 2000);
+loadUnreadCounts(); // Load immediately
 
-    // Poll for incoming calls every 1 second (faster notification)
-    setInterval(checkForIncomingCalls, 1000);
+// Update status before leaving page
+window.addEventListener('beforeunload', function () {
+    updateUserStatus('offline');
+});
 
-    // Poll for unread message counts every 2 seconds
-    setInterval(loadUnreadCounts, 2000);
-    loadUnreadCounts(); // Load immediately
-
-    // Update status before leaving page
-    window.addEventListener('beforeunload', function () {
-        updateUserStatus('offline');
+// Allow Enter key to send message
+const input = document.getElementById('messageInput');
+if (input) {
+    input.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
     });
-
-    // Allow Enter key to send message
-    const input = document.getElementById('messageInput');
-    if (input) {
-        input.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-    }
+}
 });
 
 /**
  * Load all users from database
- */
-async function loadUsers() {
-    try {
-        const response = await fetch('api/get_users.php');
-        const data = await response.json();
-
-        if (data.success) {
-            users = data.users;
-            // Set current user ID if available in response, otherwise we might need another way
-            if (data.current_user_id) {
-                currentUserId = data.current_user_id;
-            }
-            displayUsers();
-        }
-    } catch (error) {
-        console.error('Error loading users:', error);
-    }
-}
 
 /**
  * Load unread message counts

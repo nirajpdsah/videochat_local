@@ -32,6 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
                 
+                // Log login event
+                $ip_address = $_SERVER['REMOTE_ADDR'];
+                $user_agent = $_SERVER['HTTP_USER_AGENT'];
+                $log_stmt = $conn->prepare("INSERT INTO login_logs (user_id, ip_address, user_agent) VALUES (?, ?, ?)");
+                $log_stmt->bind_param("iss", $user['id'], $ip_address, $user_agent);
+                $log_stmt->execute();
+                
                 // Update user status to online
                 $update_stmt = $conn->prepare("UPDATE users SET status = 'online' WHERE id = ?");
                 $update_stmt->bind_param("i", $user['id']);
